@@ -25,6 +25,10 @@ struct Vehicle: Codable, Identifiable, Equatable {
     let speed: Double?
     let isOnRoute: Bool
     let isDelayed: Bool
+    // Capacity data
+    let capacity: Int?
+    let currentPassengers: Int?
+    let occupancyPercentage: Double?
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: lat, longitude: lon)
@@ -32,6 +36,14 @@ struct Vehicle: Codable, Identifiable, Equatable {
     
     var displayName: String {
         routeName ?? "Route \(routeId)"
+    }
+    
+    var occupancyLevel: String {
+        guard let percentage = occupancyPercentage else { return "Unknown" }
+        if percentage < 0.25 { return "Empty" }
+        if percentage < 0.50 { return "Light" }
+        if percentage < 0.75 { return "Moderate" }
+        return "Full"
     }
     
     enum CodingKeys: String, CodingKey {
@@ -43,6 +55,9 @@ struct Vehicle: Codable, Identifiable, Equatable {
         case lat, lon, heading, speed
         case isOnRoute = "is_on_route"
         case isDelayed = "is_delayed"
+        case capacity
+        case currentPassengers = "current_passengers"
+        case occupancyPercentage = "occupancy_percentage"
     }
     
     static func == (lhs: Vehicle, rhs: Vehicle) -> Bool {
@@ -94,9 +109,20 @@ struct Stop: Codable, Identifiable, Equatable {
     let name: String?
     let lat: Double?
     let lon: Double?
+    let routes: [RouteInfo]?
     
     var coordinate: CLLocationCoordinate2D? {
         guard let lat = lat, let lon = lon else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
+    
+    static func == (lhs: Stop, rhs: Stop) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+struct RouteInfo: Codable, Identifiable, Equatable {
+    let id: Int
+    let name: String?
+    let color: String?
 }

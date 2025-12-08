@@ -4,12 +4,16 @@ Provides real-time bus tracking data from TransLoc API
 Endpoints: /api/routes, /api/vehicles, /api/vehicle_estimates, /api/stop_arrival_times
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import transloc
+
 import time
 import os
 from dotenv import load_dotenv
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes (iOS simulator, web frontend, etc.)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,8 +24,7 @@ API_KEY = os.getenv("TRANSLOC_API_KEY")
 if not API_KEY:
     raise RuntimeError("TRANSLOC_API_KEY not set in .env file")
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes (iOS simulator, web frontend, etc.)
+
 
 # Simple in-memory cache so we don't hammer TransLoc
 _routes_cache = {
@@ -45,7 +48,13 @@ _estimates_cache = {
 _arrivals_cache = {
     "data": None,
     "last_fetch": 0.0,
-    "ttl": 0,  # disabled for debugging
+    "ttl": 10,  # 10s cache
+}
+
+_stops_cache = {
+    "data": None,
+    "last_fetch": 0.0,
+    "ttl": 3600,  # 1 hour cache for stops
 }
 
 
@@ -79,6 +88,10 @@ def api_routes():
     for r in routes_raw:
         # Optionally skip routes not visible on map
         if not r.get("IsVisibleOnMap", True):
+            continue
+            
+        # Skip Thanksgiving route
+        if "Thanksgiving" in (r.get("Description") or ""):
             continue
 
         # Build stops list
@@ -125,6 +138,7 @@ def api_stops():
     """
     # Reuse routes data (which includes stops)
     now = time.time()
+    
     if _routes_cache["data"] is not None and (now - _routes_cache["last_fetch"] < _routes_cache["ttl"]):
         routes_data = _routes_cache["data"]
     else:
@@ -149,6 +163,10 @@ def api_stops():
 
         routes_data = []
         for r in routes_raw:
+            # Skip Thanksgiving route
+            if "Thanksgiving" in (r.get("Description") or ""):
+                continue
+                
             stops_out = []
             for s in r.get("Stops", []):
                 stops_out.append({
@@ -159,27 +177,55 @@ def api_stops():
                     "order": s.get("Order"),
                     "show_on_map": s.get("ShowDefaultedOnMap", True),
                 })
-            routes_data.append({"stops": stops_out, "route_id": r.get("RouteID"), "route_name": r.get("Description")})
+            routes_data.append({
+                "stops": stops_out, 
+                "route_id": r.get("RouteID"), 
+                "route_name": r.get("Description"),
+                "color": r.get("MapLineColor") or r.get("Color")
+            })
 
-    # Flatten and deduplicate stops by ID
-    seen_ids = set()
-    stops_out = []
+    # Flatten and deduplicate stops by Name, aggregating routes
+    stops_map = {}
+    
     for route in routes_data:
         route_id = route.get("route_id") or route.get("id")
         route_name = route.get("route_name") or route.get("description")
+        # Try to get color from route object, fallback to hardcoded defaults if needed
+        route_color = route.get("color") or route.get("MapLineColor")
+        
         for stop in route.get("stops", []):
-            stop_id = stop.get("id")
-            if stop_id and stop_id not in seen_ids:
-                seen_ids.add(stop_id)
-                stops_out.append({
-                    "id": stop_id,
-                    "name": stop.get("name"),
+            stop_name = stop.get("name")
+            if not stop_name:
+                continue
+            
+            # Use name as key to merge
+            key = stop_name.strip()
+            
+            if key not in stops_map:
+                stops_map[key] = {
+                    "id": stop.get("id"), # Use the first ID we encounter as canonical
+                    "name": stop_name,
                     "lat": stop.get("lat"),
                     "lon": stop.get("lon"),
+                    "routes": []
+                }
+            
+            # Add route info if not already present
+            existing_routes = stops_map[key]["routes"]
+            if not any(r["id"] == route_id for r in existing_routes):
+                stops_map[key]["routes"].append({
+                    "id": route_id,
+                    "name": route_name,
+                    "color": route_color
                 })
 
-    # Sort by name for easier browsing
+    stops_out = list(stops_map.values())
+    
+    # Sort by name
     stops_out.sort(key=lambda x: x.get("name") or "")
+
+    _stops_cache["data"] = stops_out
+    _stops_cache["last_fetch"] = now
 
     return jsonify(stops_out)
 
@@ -187,7 +233,7 @@ def api_stops():
 @app.route("/api/vehicles")
 def api_vehicles():
     """
-    Live bus locations with route info included.
+    Live bus locations with route info and capacity included.
     This is the primary endpoint for the location-centric iOS app.
     """
     now = time.time()
@@ -198,10 +244,14 @@ def api_vehicles():
     if _vehicles_cache["data"] is not None and (now - _vehicles_cache["last_fetch"] < _vehicles_cache["ttl"]):
         return jsonify(_vehicles_cache["data"])
 
+    # Fetch vehicle locations
     raw = transloc.fetch_transloc(
         "GetMapVehiclePoints",
         params={"apiKey": API_KEY, "isDispatch": "false"},
     )
+
+    # Fetch capacity data
+    capacity_lookup = _get_capacity_lookup()
 
     # raw can be a dict with a list under some key, or a list directly.
     if isinstance(raw, dict):
@@ -231,10 +281,12 @@ def api_vehicles():
             continue
 
         route_id = v.get("RouteID")
+        vehicle_id = v.get("VehicleID")
         route_info = route_lookup.get(route_id, {})
+        capacity_info = capacity_lookup.get(vehicle_id, {})
 
         vehicle_out = {
-            "id": v.get("VehicleID"),
+            "id": vehicle_id,
             "route_id": route_id,
             "route_name": route_info.get("name"),
             "route_color": route_info.get("color"),
@@ -246,6 +298,10 @@ def api_vehicles():
             "is_on_route": v.get("IsOnRoute", True),
             "is_delayed": v.get("IsDelayed", False),
             "timestamp_raw": v.get("TimeStamp"),
+            # Capacity data
+            "capacity": capacity_info.get("capacity"),
+            "current_passengers": capacity_info.get("current_passengers"),
+            "occupancy_percentage": capacity_info.get("occupancy_percentage"),
         }
 
         vehicles_out.append(vehicle_out)
@@ -254,6 +310,26 @@ def api_vehicles():
     _vehicles_cache["last_fetch"] = now
 
     return jsonify(vehicles_out)
+
+
+def _get_capacity_lookup():
+    """Fetch vehicle capacities and return as a lookup dict."""
+    raw = transloc.fetch_transloc("GetVehicleCapacities", params={})
+    
+    if not isinstance(raw, list):
+        return {}
+    
+    lookup = {}
+    for c in raw:
+        vid = c.get("VehicleID")
+        if vid is not None:
+            lookup[vid] = {
+                "capacity": c.get("Capacity"),
+                "current_passengers": c.get("CurrentOccupation"),
+                "occupancy_percentage": c.get("Percentage"),
+            }
+    return lookup
+
 
 
 def _get_route_lookup():
@@ -555,9 +631,27 @@ def api_health_transloc():
     })
 
 
+
+# ------------------------------------------------------------------------------
+# MBTA Endpoints
+# ------------------------------------------------------------------------------
+
+@app.route("/api/mbta/stops")
+def api_mbta_stops():
+    """Return MBTA stops near BU (Green Line B, etc.)"""
+    return jsonify(mbta.get_stops_near_bu())
+
+@app.route("/api/mbta/predictions")
+def api_mbta_predictions():
+    """Return predictions for a specific stop ID."""
+    stop_id = request.args.get("stop_id")
+    if not stop_id:
+        return jsonify({"error": "Missing stop_id parameter"}), 400
+    return jsonify(mbta.get_predictions(stop_id))
+
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
     host = os.getenv("FLASK_HOST", "127.0.0.1")
     port = int(os.getenv("FLASK_PORT", "3000"))
     
-    app.run(debug=debug_mode, host=host, port=port)  
+    app.run(debug=debug_mode, host=host, port=port)

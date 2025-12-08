@@ -3,14 +3,17 @@
 
 import SwiftUI
 import MapKit
+import Combine
 
 struct MapViewWithPolylines: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let routes: [Route]
     let vehicles: [Vehicle]
+    let stops: [Stop]
     let enabledRoutes: Set<Int>
     let selectedVehicle: Vehicle?
     let onVehicleTap: (Vehicle) -> Void
+    let onStopTap: (Stop) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -23,6 +26,8 @@ struct MapViewWithPolylines: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         // Update polylines
         mapView.removeOverlays(mapView.overlays)
+        // Polylines disabled per user request
+        /*
         for route in routes where enabledRoutes.contains(route.id) {
             if let encoded = route.encodedPolyline,
                let coords = decodePolyline(encoded) {
@@ -31,17 +36,33 @@ struct MapViewWithPolylines: UIViewRepresentable {
                 mapView.addOverlay(polyline)
             }
         }
+        */
         
-        // Update annotations
-        let existing = mapView.annotations.compactMap { $0 as? VehicleAnnotation }
-        let existingIds = Set(existing.map { $0.vehicle.id })
+        // Update stops
+        let currentStopAnnotations = mapView.annotations.compactMap { $0 as? StopAnnotation }
+        let currentStopIds = Set(currentStopAnnotations.map { $0.stop.id })
+        let newStopIds = Set(stops.map { $0.id })
+        
+        // Remove old stops
+        let stopsToRemove = currentStopAnnotations.filter { !newStopIds.contains($0.stop.id) }
+        mapView.removeAnnotations(stopsToRemove)
+        
+        // Add new stops
+        let stopsToAdd = stops.filter { !currentStopIds.contains($0.id) }
+        for stop in stopsToAdd {
+            mapView.addAnnotation(StopAnnotation(stop: stop))
+        }
+        
+        // Update vehicle annotations
+        let existingVehicles = mapView.annotations.compactMap { $0 as? VehicleAnnotation }
+        let existingVehicleIds = Set(existingVehicles.map { $0.vehicle.id })
         let filteredVehicles = vehicles.filter { enabledRoutes.isEmpty || enabledRoutes.contains($0.routeId) }
-        let newIds = Set(filteredVehicles.map { $0.id })
+        let newVehicleIds = Set(filteredVehicles.map { $0.id })
         
-        mapView.removeAnnotations(existing.filter { !newIds.contains($0.vehicle.id) })
+        mapView.removeAnnotations(existingVehicles.filter { !newVehicleIds.contains($0.vehicle.id) })
         
         for vehicle in filteredVehicles {
-            if let ann = existing.first(where: { $0.vehicle.id == vehicle.id }) {
+            if let ann = existingVehicles.first(where: { $0.vehicle.id == vehicle.id }) {
                 ann.coordinate = vehicle.coordinate
                 ann.vehicle = vehicle
             } else {
@@ -67,22 +88,56 @@ struct MapViewWithPolylines: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let va = annotation as? VehicleAnnotation else { return nil }
-            let id = "Bus"
-            var view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
-            if view == nil {
-                view = MKAnnotationView(annotation: annotation, reuseIdentifier: id)
+            
+            // Stop annotation
+            if let stopAnn = annotation as? StopAnnotation {
+                let id = "Stop"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
+                if view == nil {
+                    view = MKAnnotationView(annotation: annotation, reuseIdentifier: id)
+                    view?.canShowCallout = true
+                }
+                view?.annotation = annotation
+                view?.image = makeStopImage()
+                return view
             }
-            view?.annotation = annotation
-            view?.image = makeBusImage(va.vehicle)
-            return view
+            
+            // Vehicle annotation
+            if let va = annotation as? VehicleAnnotation {
+                let id = "Bus"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
+                if view == nil {
+                    view = MKAnnotationView(annotation: annotation, reuseIdentifier: id)
+                }
+                view?.annotation = annotation
+                view?.image = makeBusImage(va.vehicle)
+                return view
+            }
+            
+            return nil
         }
         
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             if let va = view.annotation as? VehicleAnnotation {
                 parent.onVehicleTap(va.vehicle)
+            } else if let sa = view.annotation as? StopAnnotation {
+                parent.onStopTap(sa.stop)
             }
             mapView.deselectAnnotation(view.annotation, animated: false)
+        }
+        
+        func makeStopImage() -> UIImage {
+            let size: CGFloat = 16
+            return UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { ctx in
+                // White circle with gray border
+                let rect = CGRect(x: 2, y: 2, width: size - 4, height: size - 4)
+                let circle = UIBezierPath(ovalIn: rect)
+                UIColor.white.setFill()
+                circle.fill()
+                UIColor.darkGray.setStroke()
+                circle.lineWidth = 2
+                circle.stroke()
+            }
         }
         
         func makeBusImage(_ v: Vehicle) -> UIImage {
@@ -120,6 +175,19 @@ class VehicleAnnotation: NSObject, MKAnnotation {
         self.coordinate = vehicle.coordinate
     }
 }
+
+class StopAnnotation: NSObject, MKAnnotation {
+    let stop: Stop
+    dynamic var coordinate: CLLocationCoordinate2D
+    var title: String? { stop.name }
+    
+    init(stop: Stop) {
+        self.stop = stop
+        self.coordinate = stop.coordinate ?? CLLocationCoordinate2D()
+    }
+}
+
+
 
 func decodePolyline(_ encoded: String) -> [CLLocationCoordinate2D]? {
     var coords: [CLLocationCoordinate2D] = []

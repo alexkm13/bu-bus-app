@@ -2,6 +2,7 @@
 // BUBusTracker - Network layer for fetching bus data
 
 import Foundation
+import Combine
 
 class APIService: ObservableObject {
     // Change this to your Mac's IP for real device testing
@@ -33,7 +34,9 @@ class APIService: ObservableObject {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { await self?.fetchVehicles() }
         }
-        Task { await fetchMap() }
+        Task {
+            await fetchMap()
+        }
     }
     
     func stopAutoRefresh() {

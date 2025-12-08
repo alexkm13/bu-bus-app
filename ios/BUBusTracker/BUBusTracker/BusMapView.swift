@@ -3,6 +3,7 @@
 
 import SwiftUI
 import MapKit
+import Combine
 
 struct BusMapView: View {
     @StateObject private var api = APIService()
@@ -12,6 +13,7 @@ struct BusMapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)
     )
     @State private var selectedVehicle: Vehicle?
+    @State private var selectedStop: Stop?
     @State private var showRouteFilter = false
     @State private var enabledRoutes: Set<Int> = []
     @State private var hasInitializedRoutes = false
@@ -26,9 +28,21 @@ struct BusMapView: View {
                 region: $region,
                 routes: api.routes,
                 vehicles: filteredVehicles,
+                stops: api.stops,
                 enabledRoutes: enabledRoutes,
                 selectedVehicle: selectedVehicle,
-                onVehicleTap: { v in withAnimation { selectedVehicle = v } }
+                onVehicleTap: { v in
+                    withAnimation {
+                        selectedVehicle = v
+                        selectedStop = nil
+                    }
+                },
+                onStopTap: { s in
+                    withAnimation {
+                        selectedStop = s
+                        selectedVehicle = nil
+                    }
+                }
             )
             .ignoresSafeArea()
             
@@ -58,6 +72,12 @@ struct BusMapView: View {
                 
                 if let v = selectedVehicle {
                     VehicleCard(vehicle: v) { withAnimation { selectedVehicle = nil } }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding()
+                }
+                
+                if let s = selectedStop {
+                    StopCard(stop: s) { withAnimation { selectedStop = nil } }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .padding()
                 }
@@ -111,6 +131,14 @@ struct VehicleCard: View {
     let vehicle: Vehicle
     let onDismiss: () -> Void
     
+    var occupancyColor: Color {
+        guard let pct = vehicle.occupancyPercentage else { return .gray }
+        if pct < 0.25 { return .green }
+        if pct < 0.50 { return .blue }
+        if pct < 0.75 { return .orange }
+        return .red
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -124,12 +152,64 @@ struct VehicleCard: View {
                 }
             }
             Divider()
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 Label("\(Int(vehicle.speed ?? 0)) mph", systemImage: "speedometer").font(.subheadline)
+                
+                if let passengers = vehicle.currentPassengers, let capacity = vehicle.capacity, capacity > 0 {
+                    Label("\(passengers)/\(capacity)", systemImage: "person.2.fill")
+                        .font(.subheadline)
+                        .foregroundColor(occupancyColor)
+                }
+                
                 Label(vehicle.isDelayed ? "Delayed" : "On Time",
                       systemImage: vehicle.isDelayed ? "exclamationmark.triangle" : "checkmark.circle")
                     .font(.subheadline)
                     .foregroundColor(vehicle.isDelayed ? .orange : .green)
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+    }
+}
+
+struct StopCard: View {
+    let stop: Stop
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundColor(.blue)
+                    Text(stop.name ?? "Bus Stop")
+                        .font(.headline)
+                }
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill").font(.title2).foregroundColor(.secondary)
+                }
+            }
+            
+            if let routes = stop.routes, !routes.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(routes) { route in
+                            Text(route.name ?? "Route \(route.id)")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(6)
+                                .background(Color(hex: route.color ?? "#000000"))
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+            } else {
+                Text("Tap for arrival times (coming soon)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
