@@ -2,14 +2,16 @@
 
 **If you like what you see, consider buying me a cup of coffee ☕.**
 
-[![GitHub stars](https://img.shields.io/github/stars/alexkim205/BUBusTracker?style=social)](https://github.com/alexkim205/BUBusTracker/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/alexkim205/BUBusTracker?style=social)](https://github.com/alexkim205/BUBusTracker/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/alexkm13/bu-bus-app?style=social)](https://github.com/alexkm13/bu-bus-app/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/alexkm13/bu-bus-app?style=social)](https://github.com/alexkm13/bu-bus-app/network/members)
 
 ---
 
 Tired of waiting at the bus stop wondering when your bus will arrive? Want to see exactly where your bus is in real-time? Looking for a clean, native iOS experience for tracking Boston University's bus system? Look no further!
 
 **BU Bus Tracker** is a real-time bus tracking iOS application for Boston University's bus system. Built with SwiftUI and MapKit, this app provides live bus locations, route visualization, and detailed vehicle information right at your fingertips.
+
+This repository contains both the iOS app and the Python backend API that powers it.
 
 ## 📸 Screenshots
 
@@ -40,19 +42,20 @@ _Add your app screenshots here!_
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/alexkim205/BUBusTracker.git
-   cd BUBusTracker
+   git clone https://github.com/alexkm13/bu-bus-app.git
+   cd bu-bus-app
    ```
 
-2. **Open in Xcode**
+2. **Open iOS app in Xcode**
    ```bash
+   cd ios/BUBusTracker
    open BUBusTracker.xcodeproj
    ```
 
 3. **Configure API Endpoint**
    
    The app uses different endpoints based on the build target:
-   - **Simulator**: `http://127.0.0.1:3000` (for local development - requires running the [backend API](https://github.com/alexkm13/bu-bus-app) locally)
+   - **Simulator**: `http://127.0.0.1:3000` (for local development - requires running the backend API locally)
    - **Physical Device**: `https://bu-bus-app.onrender.com` (production API)
    
    To change the API endpoint, edit `APIService.swift`:
@@ -99,13 +102,25 @@ _Add your app screenshots here!_
 
 ## ✏️ Development
 
-To build the app locally, clone the repository, open it in Xcode, and run the project.
+### iOS App
+
+To build the iOS app locally, navigate to the iOS directory and open it in Xcode:
 
 ```bash
-git clone https://github.com/alexkim205/BUBusTracker.git
-cd BUBusTracker
+cd ios/BUBusTracker
 open BUBusTracker.xcodeproj
 ```
+
+### Backend API
+
+The backend is a Python Flask application. To run it locally:
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+The API will run on `http://localhost:3000` by default.
 
 🛎️ **Have suggestions?** Feel free to create an issue or make a pull request.
 
@@ -114,35 +129,46 @@ open BUBusTracker.xcodeproj
 ### Project Structure
 
 ```
-BUBusTracker/
-├── BUBusTrackerApp.swift          # Main app entry point
-├── BusMapView.swift               # Primary map view with UI controls
-├── MapViewWithPolylines.swift     # UIKit MapView wrapper with annotations
-├── APIService.swift               # Network layer for API communication
-├── Models.swift                   # Data models (Vehicle, Route, Stop, etc.)
-└── Info.plist                     # App configuration
+bu-bus-app/
+├── ios/
+│   └── BUBusTracker/
+│       └── BUBusTracker/
+│           ├── BUBusTrackerApp.swift          # Main app entry point
+│           ├── BusMapView.swift               # Primary map view with UI controls
+│           ├── MapViewWithPolylines.swift     # UIKit MapView wrapper with annotations
+│           ├── APIService.swift               # Network layer for API communication
+│           ├── Models.swift                   # Data models (Vehicle, Route, Stop, etc.)
+│           └── Info.plist                     # App configuration
+├── app.py                                     # Flask backend API
+├── transloc.py                                # TransLoc API integration
+├── requirements.txt                           # Python dependencies
+└── README.md                                  # This file
 ```
 
 ### Dependencies
 
+**iOS:**
 * **SwiftUI** - Modern declarative UI framework
 * **MapKit** - Map rendering and annotations
 * **Combine** - Reactive data flow
 * **Foundation** - Core system functionality
 
+**Backend:**
+* **Flask** - Python web framework
+* **requests** - HTTP library for API calls
+
 ### Architecture
 
-- **SwiftUI** for the user interface
+- **SwiftUI** for the iOS user interface
 - **MapKit** for map rendering and annotations
 - **Combine** for reactive data flow
 - **Async/Await** for network requests
 - **MVVM-like pattern** with `ObservableObject` for state management
+- **Flask** for the backend API server
 
 ## 🔌 API Endpoints
 
-This iOS app connects to a backend API that provides real-time bus data. The backend repository can be found at [bu-bus-app](https://github.com/alexkm13/bu-bus-app).
-
-The app expects the following API endpoints:
+The backend API provides the following endpoints:
 
 ### `GET /api/map`
 Returns complete map data including vehicles, routes, and stops.
@@ -183,7 +209,7 @@ Returns updated vehicle positions (used for faster refresh cycles).
 
 ## 🔄 Auto-Refresh
 
-The app automatically refreshes bus positions every 10 seconds. The refresh interval can be customized in `APIService.swift`:
+The iOS app automatically refreshes bus positions every 10 seconds. The refresh interval can be customized in `APIService.swift`:
 
 ```swift
 func startAutoRefresh(interval: TimeInterval = 10) {
@@ -199,13 +225,13 @@ _Disclaimer: Not affiliated with Boston University._
 
 ## About
 
-Real-time bus tracking iOS application for Boston University's bus system. Made possible with SwiftUI and MapKit.
+Real-time bus tracking iOS application for Boston University's bus system. Made possible with SwiftUI, MapKit, and Flask.
 
-**Backend API**: The iOS app connects to a Python backend API. See [bu-bus-app](https://github.com/alexkm13/bu-bus-app) for the backend implementation.
+This repository contains both the iOS frontend and Python backend API.
 
 ### Topics
 
-swift swiftui ios mapkit bus-tracking real-time boston-university
+swift swiftui ios mapkit bus-tracking real-time boston-university python flask backend api
 
 ### Resources
 
