@@ -1,10 +1,4 @@
 # BU Bus Tracker
-
-**If you like what you see, consider buying me a cup of coffee ☕.**
-
-[![GitHub stars](https://img.shields.io/github/stars/alexkm13/bu-bus-app?style=social)](https://github.com/alexkm13/bu-bus-app/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/alexkm13/bu-bus-app?style=social)](https://github.com/alexkm13/bu-bus-app/network/members)
-
 ---
 
 Tired of waiting at the bus stop wondering when your bus will arrive? Want to see exactly where your bus is in real-time? Looking for a clean, native iOS experience for tracking Boston University's bus system? Look no further!
