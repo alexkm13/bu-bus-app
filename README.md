@@ -222,29 +222,3 @@ func startAutoRefresh(interval: TimeInterval = 10) {
 MIT License
 
 _Disclaimer: Not affiliated with Boston University._
-
-## About
-
-Real-time bus tracking iOS application for Boston University's bus system. Made possible with SwiftUI, MapKit, and Flask.
-
-This repository contains both the iOS frontend and Python backend API.
-
-### Topics
-
-swift swiftui ios mapkit bus-tracking real-time boston-university python flask backend api
-
-### Resources
-
-Readme
-
-### License
-
-MIT license
-
-### Code of conduct
-
-[Code of conduct](CODE_OF_CONDUCT.md)
-
-### Contributing
-
-[Contributing](CONTRIBUTING.md)
