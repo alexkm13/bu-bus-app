@@ -52,7 +52,7 @@ _Add your app screenshots here!_
 3. **Configure API Endpoint**
    
    The app uses different endpoints based on the build target:
-   - **Simulator**: `http://127.0.0.1:3000` (for local development)
+   - **Simulator**: `http://127.0.0.1:3000` (for local development - requires running the [backend API](https://github.com/alexkm13/bu-bus-app) locally)
    - **Physical Device**: `https://bu-bus-app.onrender.com` (production API)
    
    To change the API endpoint, edit `APIService.swift`:
@@ -140,6 +140,8 @@ BUBusTracker/
 
 ## 🔌 API Endpoints
 
+This iOS app connects to a backend API that provides real-time bus data. The backend repository can be found at [bu-bus-app](https://github.com/alexkm13/bu-bus-app).
+
 The app expects the following API endpoints:
 
 ### `GET /api/map`
@@ -198,6 +200,8 @@ _Disclaimer: Not affiliated with Boston University._
 ## About
 
 Real-time bus tracking iOS application for Boston University's bus system. Made possible with SwiftUI and MapKit.
+
+**Backend API**: The iOS app connects to a Python backend API. See [bu-bus-app](https://github.com/alexkm13/bu-bus-app) for the backend implementation.
 
 ### Topics
 
